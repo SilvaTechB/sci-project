@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import ParticlesBackground from '@/components/ParticlesBackground';
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   GraduationCap, LogOut, FileText, Clock, CheckCircle, XCircle, 
-  Loader2, File, Download, Users, FolderOpen, Settings, Archive,
+  Loader2, File, Download, Users, FolderOpen,
   Eye, History, AlertCircle, CalendarDays
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -227,43 +227,23 @@ const LecturerDashboard = () => {
       <ParticlesBackground />
       
       {/* Header */}
-      <header className="relative z-10 border-b border-border bg-card/50 backdrop-blur-lg">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="app-header relative z-10">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center shrink-0">
+              <GraduationCap className="w-4 h-4 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-display font-bold text-lg gradient-text">SCI Archive</h1>
-              <p className="text-xs text-muted-foreground">Lecturer Dashboard</p>
+              <h1 className="font-display font-bold text-base leading-tight gradient-text">SCI Archive</h1>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                {profile?.full_name ? profile.full_name.split(' ')[0] : 'Lecturer'} • Lecturer
+              </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <MentionNotifications />
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/archive">
-                <Archive className="w-4 h-4 mr-1" />
-                Archive
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/users">
-                <Users className="w-4 h-4 mr-1" />
-                Users
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/settings">
-                <Settings className="w-4 h-4 mr-1" />
-                Settings
-              </Link>
-            </Button>
-            <div className="text-right hidden sm:block ml-2">
-              <p className="text-sm font-medium">{profile?.full_name}</p>
-              <p className="text-xs text-muted-foreground">Lecturer</p>
-            </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="h-9 w-9">
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
@@ -271,7 +251,7 @@ const LecturerDashboard = () => {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 container mx-auto px-4 py-8">
+      <main className="relative z-10 container mx-auto px-4 py-6 page-with-nav">
         {/* Stats Cards */}
         <DashboardStats 
           pending={stats.pending}

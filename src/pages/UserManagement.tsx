@@ -161,32 +161,25 @@ const UserManagement = () => {
       <ParticlesBackground />
       
       {/* Header */}
-      <header className="relative z-10 border-b border-border bg-card/50 backdrop-blur-lg">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="app-header relative z-10">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center shrink-0">
+              <GraduationCap className="w-4 h-4 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-display font-bold text-lg gradient-text">SCI Archive</h1>
-              <p className="text-xs text-muted-foreground">User Management</p>
+              <h1 className="font-display font-bold text-base leading-tight gradient-text">SCI Archive</h1>
+              <p className="text-[11px] text-muted-foreground leading-tight">User Management</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/lecturer')}>
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back
-            </Button>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="h-9 w-9">
+            <LogOut className="w-4 h-4" />
+          </Button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 container mx-auto px-4 py-8">
+      <main className="relative z-10 container mx-auto px-4 py-6 page-with-nav">
         <div className="mb-8">
           <h2 className="text-2xl font-display font-bold flex items-center gap-2">
             <Users className="w-6 h-6" />
