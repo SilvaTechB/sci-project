@@ -1,0 +1,50 @@
+Showing the last 50 lines. Click this button to load the full log
+> Task :capacitor-android:extractDeepLinksDebug
+> Task :capacitor-cordova-android-plugins:extractDeepLinksDebug
+> Task :capacitor-filesystem:extractDeepLinksDebug
+> Task :capacitor-android:compileDebugLibraryResources
+> Task :app:parseDebugLocalResources
+> Task :capacitor-cordova-android-plugins:compileDebugLibraryResources
+> Task :capacitor-android:parseDebugLocalResources
+> Task :capacitor-cordova-android-plugins:parseDebugLocalResources
+> Task :capacitor-android:processDebugManifest
+> Task :capacitor-filesystem:processDebugManifest
+> Task :capacitor-cordova-android-plugins:processDebugManifest
+> Task :capacitor-filesystem:compileDebugLibraryResources
+> Task :capacitor-android:generateDebugRFile
+> Task :capacitor-cordova-android-plugins:generateDebugRFile
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :capacitor-android:javaPreCompileDebug
+> Task :app:processDebugManifestForPackage
+> Task :capacitor-filesystem:parseDebugLocalResources
+> Task :capacitor-android:compileDebugJavaWithJavac FAILED
+WARNING: The following problems were found when resolving the SDK location:
+Where: ANDROID_SDK_ROOT environment variable. Problem: Directory does not exist
+
+
+[Incubating] Problems report is available at: file:///Users/builder/clone/android/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':capacitor-android:compileDebugJavaWithJavac'.
+> Java compilation initialization error
+    error: invalid source release: 21
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 51s
+46 actionable tasks: 46 executed
+
+
+Build failed :|
+Step 6 script `Build debug APK` exited with status code 1
+
+
+Build failed :|
+Step 6 script `Build debug APK` exited with status code 1
