@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import AppLoader from "@/components/AppLoader";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import MobileNav from "@/components/MobileNav";
+import PWAInstallWall from "@/components/PWAInstallWall";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -51,6 +52,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner position="top-center" />
+        <PWAInstallWall>
         <AppLoader>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AppLayout>
@@ -91,6 +93,7 @@ const App = () => (
             </AppLayout>
           </BrowserRouter>
         </AppLoader>
+        </PWAInstallWall>
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>
