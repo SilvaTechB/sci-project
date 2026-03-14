@@ -40,22 +40,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();           // never throws on missing row (unlike .single())
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return null;
-      }
-      return data as Profile;
-    } catch (error) {
+    if (error) {
       console.error('Error fetching profile:', error);
       return null;
     }
+    return (data as Profile) ?? null;
   };
 
   const refreshProfile = async () => {
@@ -97,26 +92,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initAuth();
 
-    // Listen for auth changes
+    // Listen for auth changes — skip TOKEN_REFRESHED to avoid redundant profile fetches
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         if (!isMounted) return;
-        
+
+        // Token refresh just updates the session token — no need to re-fetch the profile
+        if (event === 'TOKEN_REFRESHED') {
+          setSession(newSession);
+          return;
+        }
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
-        
+
         if (newSession?.user) {
-          fetchProfile(newSession.user.id).then(profileData => {
-            if (isMounted) {
-              setProfile(profileData);
-            }
-          });
+          // Only refetch profile on actual sign-in or user update events
+          if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+            fetchProfile(newSession.user.id).then(profileData => {
+              if (isMounted) setProfile(profileData);
+            });
+          }
         } else {
           setProfile(null);
-        }
-        
-        if (event === 'SIGNED_OUT') {
-          setLoading(false);
         }
       }
     );
