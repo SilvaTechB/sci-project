@@ -93,51 +93,89 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // Sign up user
+      // Step 1: Create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
+      });
+
+      if (authError) {
+        if (authError.message.toLowerCase().includes('already registered') ||
+            authError.message.toLowerCase().includes('already been registered')) {
+          toast.error('An account with this email already exists. Please sign in instead.');
+        } else {
+          toast.error(authError.message);
+        }
+        return;
+      }
+
+      if (!authData.user) {
+        toast.error('Sign-up failed. Please try again.');
+        return;
+      }
+
+      // Step 2: Sign in immediately to get a live session (needed for RLS on profile insert)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
 
-      if (authError) {
-        toast.error(authError.message);
+      if (signInError) {
+        // Email confirmation is enabled — user needs to confirm before they can log in
+        if (
+          signInError.message.toLowerCase().includes('not confirmed') ||
+          signInError.message.toLowerCase().includes('email not confirmed')
+        ) {
+          toast.success(
+            'Account created! Check your email for a confirmation link, then sign in here.',
+            { duration: 8000 }
+          );
+          navigate('/login');
+          return;
+        }
+        toast.error('Account created but sign-in failed: ' + signInError.message);
+        navigate('/login');
         return;
       }
 
-      if (authData.user) {
-        // Create profile
-        const profileData = {
-          user_id: authData.user.id,
-          full_name: formData.fullName,
-          email: formData.email,
-          role: formData.role,
-          registration_number: formData.role === 'student' 
-            ? formData.registrationNumber.toUpperCase() 
-            : formData.staffId,
-          course_name: formData.role === 'student' ? regNoValidation?.courseName : null,
-          year_of_study: formData.role === 'student' ? regNoValidation?.yearOfStudy : null,
-          can_submit: formData.role === 'student' ? regNoValidation?.canSubmit : false,
-        };
+      // Step 3: We have an active session — create the profile
+      const profileData = {
+        user_id: signInData.user!.id,
+        full_name: formData.fullName,
+        email: formData.email,
+        role: formData.role,
+        registration_number: formData.role === 'student'
+          ? formData.registrationNumber.toUpperCase()
+          : formData.staffId,
+        course_name: formData.role === 'student' ? regNoValidation?.courseName : null,
+        year_of_study: formData.role === 'student' ? regNoValidation?.yearOfStudy : null,
+        can_submit: formData.role === 'student' ? (regNoValidation?.canSubmit ?? false) : false,
+      };
 
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert(profileData);
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert(profileData);
 
-        if (profileError) {
-          toast.error('Failed to create profile: ' + profileError.message);
+      if (profileError) {
+        // If profile already exists (race condition), just navigate
+        if (profileError.code === '23505') {
+          toast.success('Account created successfully!');
+        } else {
+          toast.error('Account created but profile setup failed: ' + profileError.message);
+          navigate('/login');
           return;
         }
-
-        toast.success('Account created successfully!');
-        
-        if (formData.role === 'lecturer') {
-          navigate('/lecturer');
-        } else {
-          navigate('/student');
-        }
+      } else {
+        toast.success('Account created successfully! Welcome to SCI Archive.');
       }
+
+      navigate(formData.role === 'lecturer' ? '/lecturer' : '/student', { replace: true });
+
     } catch (error) {
-      toast.error('An unexpected error occurred');
+      toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
