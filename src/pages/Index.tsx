@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import ParticlesBackground from '@/components/ParticlesBackground';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { GraduationCap, Upload, CheckCircle, Users, Shield, Archive, ArrowRight, Loader2 } from 'lucide-react';
+import { GraduationCap, Upload, CheckCircle, Users, Shield, Archive, ArrowRight, Loader2, Smartphone } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -54,6 +54,12 @@ const Index = () => {
             </div>
             
             <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/install">
+                  <Smartphone className="w-4 h-4 mr-1.5" />
+                  Get App
+                </Link>
+              </Button>
               <Button variant="ghost" asChild>
                 <Link to="/login">Sign In</Link>
               </Button>
