@@ -1,0 +1,41 @@
+workflows:
+  android-debug:
+    name: SCI Archive - Android Debug APK
+    max_build_duration: 30
+    environment:
+      node: v22
+      java: 17
+      vars:
+        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+
+      - name: Create .env file
+        script: |
+          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" > .env
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY" >> .env
+          echo "VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID" >> .env
+
+      - name: Build web assets
+        script: npm run build
+
+      - name: Sync Capacitor Android
+        script: npx cap sync android
+
+      - name: Build debug APK
+        script: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+    artifacts:
+      - android/app/build/outputs/apk/debug/app-debug.apk
+
+    publishing:
+      email:
+        recipients:
+          - $CM_COMMIT_AUTHOR_EMAIL
+        notify:
+          success: true
+          failure: true
