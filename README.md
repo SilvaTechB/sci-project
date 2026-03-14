@@ -2,6 +2,9 @@
 
 A modern, secure platform for submitting, reviewing, and archiving academic project documents, built for the **School of Computing & Informatics (SCI)**. Available as a **Progressive Web App (PWA)**, an **Android APK**, and an **iOS app** via Capacitor.
 
+> **Full user documentation:** [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md)  
+> Covers: user guide, Replit hosting, APK download procedure, app icon, database schema, and troubleshooting.
+
 ---
 
 ## Table of Contents

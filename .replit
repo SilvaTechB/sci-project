@@ -5,12 +5,13 @@ integrations = ["javascript_database:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["jdk17", "unzip", "zip", "gradle"]
+packages = ["jdk17", "unzip", "zip", "gradle", "imagemagick"]
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "static"
 run = ["node", "./dist/index.cjs"]
 build = ["npm", "run", "build"]
+publicDir = "dist"
 
 [workflows]
 runButton = "Project"
