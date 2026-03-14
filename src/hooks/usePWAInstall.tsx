@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 type Platform = 'android' | 'ios' | 'desktop' | 'unknown';
 
 interface PWAInstallState {
   isStandalone: boolean;
   platform: Platform;
-  canInstall: boolean;
-  promptInstall: () => Promise<boolean>;
+  promptInstall: () => void;
 }
 
 let deferredPrompt: any = null;
+const pendingCallbacks: (() => void)[] = [];
 
 export const usePWAInstall = (): PWAInstallState => {
-  const [canInstall, setCanInstall] = useState(false);
+  const [, forceUpdate] = useState(0);
+  const pendingRef = useRef(false);
 
   const isStandalone =
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -31,30 +32,38 @@ export const usePWAInstall = (): PWAInstallState => {
     const handler = (e: Event) => {
       e.preventDefault();
       deferredPrompt = e;
-      setCanInstall(true);
+      forceUpdate(n => n + 1);
+      // If user already clicked while we were waiting, fire immediately
+      if (pendingRef.current) {
+        pendingRef.current = false;
+        triggerPrompt();
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handler);
-
-    // Also check if already capturable
-    if (deferredPrompt) setCanInstall(true);
-
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  const promptInstall = async (): Promise<boolean> => {
-    if (!deferredPrompt) return false;
+  const triggerPrompt = async () => {
+    if (!deferredPrompt) return;
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    await deferredPrompt.userChoice;
     deferredPrompt = null;
-    setCanInstall(false);
-    return outcome === 'accepted';
+    forceUpdate(n => n + 1);
+  };
+
+  const promptInstall = () => {
+    if (deferredPrompt) {
+      triggerPrompt();
+    } else {
+      // Queue: trigger as soon as the browser fires the event
+      pendingRef.current = true;
+    }
   };
 
   return {
     isStandalone,
     platform: getPlatform(),
-    canInstall,
     promptInstall,
   };
 };

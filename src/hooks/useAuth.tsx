@@ -128,12 +128,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    setLoading(true);
-    await supabase.auth.signOut();
+    // Clear local state immediately so the UI responds instantly
     setUser(null);
     setSession(null);
     setProfile(null);
-    setLoading(false);
+    // Sign out from Supabase in the background
+    supabase.auth.signOut();
   };
 
   return (
