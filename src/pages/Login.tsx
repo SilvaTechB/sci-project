@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import ParticlesBackground from '@/components/ParticlesBackground';
-import { GraduationCap, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { GraduationCap, Eye, EyeOff, Loader2, Shield, CheckCircle, XCircle, BadgeCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateRegistrationNumber, validateStaffId } from '@/lib/regNoValidation';
 
@@ -24,12 +24,15 @@ const Login = () => {
   const [needsProfile, setNeedsProfile] = useState(false);
   const [loggedInUserId, setLoggedInUserId] = useState<string>('');
   const [loggedInEmail, setLoggedInEmail] = useState<string>('');
+  const ADMIN_INVITE_CODE = 'SCIARCHIVE-ADMIN-2026';
   const [profileForm, setProfileForm] = useState({
     fullName: '',
-    role: 'student' as 'student' | 'lecturer',
+    role: 'student' as 'student' | 'lecturer' | 'admin',
     registrationNumber: '',
     staffId: '',
+    adminCode: '',
   });
+  const [cpDbInviteValid, setCpDbInviteValid] = useState<boolean | null>(null);
 
   // Redirect if already fully logged in
   useEffect(() => {
@@ -94,6 +97,27 @@ const Login = () => {
     }
   };
 
+  // DB invite validation for profile completion form
+  useEffect(() => {
+    const code = profileForm.adminCode.trim().toUpperCase();
+    if (profileForm.role !== 'admin' || !code || code === ADMIN_INVITE_CODE) {
+      setCpDbInviteValid(null);
+      return;
+    }
+    if (code.length < 8) { setCpDbInviteValid(null); return; }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from('admin_invites')
+        .select('id')
+        .eq('code', code)
+        .eq('is_active', true)
+        .is('used_by', null)
+        .maybeSingle();
+      setCpDbInviteValid(!!data);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [profileForm.adminCode, profileForm.role]);
+
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -101,6 +125,7 @@ const Login = () => {
     try {
       let regNoValidation = null;
       let staffIdValidation = null;
+      let dbInviteId: string | null = null;
 
       if (profileForm.role === 'student') {
         regNoValidation = validateRegistrationNumber(profileForm.registrationNumber);
@@ -109,12 +134,29 @@ const Login = () => {
           setLoading(false);
           return;
         }
-      } else {
+      } else if (profileForm.role === 'lecturer') {
         staffIdValidation = validateStaffId(profileForm.staffId);
         if (!staffIdValidation.isValid) {
           toast.error(staffIdValidation.error || 'Invalid staff ID');
           setLoading(false);
           return;
+        }
+      } else if (profileForm.role === 'admin') {
+        const code = profileForm.adminCode.trim().toUpperCase();
+        if (code !== ADMIN_INVITE_CODE) {
+          const { data } = await supabase
+            .from('admin_invites')
+            .select('id')
+            .eq('code', code)
+            .eq('is_active', true)
+            .is('used_by', null)
+            .maybeSingle();
+          if (!data) {
+            toast.error('Invalid or expired Super Admin verification code');
+            setLoading(false);
+            return;
+          }
+          dbInviteId = data.id;
         }
       }
 
@@ -125,7 +167,9 @@ const Login = () => {
         role: profileForm.role,
         registration_number: profileForm.role === 'student'
           ? profileForm.registrationNumber.toUpperCase()
-          : profileForm.staffId,
+          : profileForm.role === 'lecturer'
+          ? profileForm.staffId
+          : null,
         course_name: profileForm.role === 'student' ? regNoValidation?.courseName : null,
         year_of_study: profileForm.role === 'student' ? regNoValidation?.yearOfStudy : null,
         can_submit: profileForm.role === 'student' ? (regNoValidation?.canSubmit ?? false) : false,
@@ -137,6 +181,14 @@ const Login = () => {
         toast.error('Failed to create profile: ' + profileError.message);
         setLoading(false);
         return;
+      }
+
+      // Mark DB invite as used
+      if (dbInviteId) {
+        await supabase
+          .from('admin_invites')
+          .update({ used_by: loggedInUserId, used_at: new Date().toISOString() })
+          .eq('id', dbInviteId);
       }
 
       toast.success('Profile completed! Welcome to SCI Archive.');
@@ -196,18 +248,24 @@ const Login = () => {
                   <Label>I am a</Label>
                   <RadioGroup
                     value={profileForm.role}
-                    onValueChange={(v: 'student' | 'lecturer') =>
-                      setProfileForm({ ...profileForm, role: v })
+                    onValueChange={(v: 'student' | 'lecturer' | 'admin') =>
+                      setProfileForm({ ...profileForm, role: v, adminCode: '' })
                     }
-                    className="grid grid-cols-2 gap-4"
+                    className="grid grid-cols-3 gap-2"
                   >
-                    <div className={`flex items-center space-x-2 p-4 rounded-lg border transition-all cursor-pointer ${profileForm.role === 'student' ? 'border-primary bg-primary/10' : 'border-border'}`}>
+                    <div className={`flex items-center space-x-2 p-3 rounded-lg border transition-all cursor-pointer ${profileForm.role === 'student' ? 'border-primary bg-primary/10' : 'border-border'}`}>
                       <RadioGroupItem value="student" id="cp-student" />
-                      <Label htmlFor="cp-student" className="cursor-pointer">Student</Label>
+                      <Label htmlFor="cp-student" className="cursor-pointer text-sm">Student</Label>
                     </div>
-                    <div className={`flex items-center space-x-2 p-4 rounded-lg border transition-all cursor-pointer ${profileForm.role === 'lecturer' ? 'border-primary bg-primary/10' : 'border-border'}`}>
+                    <div className={`flex items-center space-x-2 p-3 rounded-lg border transition-all cursor-pointer ${profileForm.role === 'lecturer' ? 'border-primary bg-primary/10' : 'border-border'}`}>
                       <RadioGroupItem value="lecturer" id="cp-lecturer" />
-                      <Label htmlFor="cp-lecturer" className="cursor-pointer">Lecturer</Label>
+                      <Label htmlFor="cp-lecturer" className="cursor-pointer text-sm">Lecturer</Label>
+                    </div>
+                    <div className={`flex items-center space-x-2 p-3 rounded-lg border transition-all cursor-pointer ${profileForm.role === 'admin' ? 'border-orange-500 bg-orange-500/10' : 'border-border hover:border-orange-500/50'}`}>
+                      <RadioGroupItem value="admin" id="cp-admin" />
+                      <Label htmlFor="cp-admin" className="cursor-pointer text-sm flex items-center gap-1">
+                        <Shield className="w-3 h-3" />Super Admin
+                      </Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -235,7 +293,7 @@ const Login = () => {
                     />
                     <p className="text-xs text-muted-foreground">Format: COURSE/LEVEL/NUMBER/YEAR</p>
                   </div>
-                ) : (
+                ) : profileForm.role === 'lecturer' ? (
                   <div className="space-y-2">
                     <Label htmlFor="cp-staff">Staff ID</Label>
                     <Input
@@ -246,6 +304,40 @@ const Login = () => {
                       required
                     />
                     <p className="text-xs text-muted-foreground">4–10 digits only</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="cp-admin-code" className="flex items-center gap-1">
+                      <BadgeCheck className="w-3 h-3 text-orange-500" />
+                      Super Admin Verification Code
+                    </Label>
+                    <Input
+                      id="cp-admin-code"
+                      type="password"
+                      placeholder="Enter verification code"
+                      value={profileForm.adminCode}
+                      onChange={(e) => setProfileForm({ ...profileForm, adminCode: e.target.value })}
+                      required
+                    />
+                    {(() => {
+                      const code = profileForm.adminCode.trim().toUpperCase();
+                      const isHardcoded = code === ADMIN_INVITE_CODE;
+                      const isValid = isHardcoded || cpDbInviteValid === true;
+                      const isInvalid = code.length >= 8 && !isHardcoded && cpDbInviteValid === false;
+                      if (isValid) return (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 text-orange-600 text-xs border border-orange-500/20">
+                          <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                          Verified — you will be registered as a Super Admin.
+                        </div>
+                      );
+                      if (isInvalid) return (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-destructive/10 text-destructive text-xs border border-destructive/20">
+                          <XCircle className="w-3.5 h-3.5 shrink-0" />
+                          Invalid or expired code.
+                        </div>
+                      );
+                      return null;
+                    })()}
                   </div>
                 )}
               </CardContent>
