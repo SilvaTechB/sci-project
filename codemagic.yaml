@@ -29,3 +29,67 @@ workflows:
 
     artifacts:
       - android/app/build/outputs/apk/debug/app-debug.apk
+
+  android-release:
+    name: SCI Archive - Android Release AAB (Play Store)
+    max_build_duration: 45
+    environment:
+      node: v22
+      java: 21
+      android_signing:
+        - sciarchive_keystore
+      vars:
+        PACKAGE_NAME: com.sciarchive.app
+
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+
+      - name: Create .env file
+        script: |
+          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" > .env
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY" >> .env
+          echo "VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID" >> .env
+
+      - name: Build web assets
+        script: npm run build
+
+      - name: Sync Capacitor Android
+        script: npx cap sync android
+
+      - name: Set version code from build number
+        script: |
+          BUILD_NUMBER=$(($(google-play get-latest-build-number \
+            --package-name "$PACKAGE_NAME" \
+            --tracks=alpha,beta,internal,production 2>/dev/null || echo 0) + 1))
+          echo "Build number: $BUILD_NUMBER"
+          sed -i "s/versionCode .*/versionCode $BUILD_NUMBER/" android/app/build.gradle
+          sed -i "s/versionName .*/versionName \"1.0.$BUILD_NUMBER\"/" android/app/build.gradle
+
+      - name: Build release AAB
+        script: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Sign AAB
+        script: |
+          echo $CM_KEYSTORE | base64 --decode > /tmp/sciarchive.keystore
+          jarsigner \
+            -verbose \
+            -sigalg SHA256withRSA \
+            -digestalg SHA-256 \
+            -keystore /tmp/sciarchive.keystore \
+            -storepass $CM_KEYSTORE_PASSWORD \
+            -keypass $CM_KEY_PASSWORD \
+            android/app/build/outputs/bundle/release/app-release.aab \
+            $CM_KEY_ALIAS
+
+    artifacts:
+      - android/app/build/outputs/bundle/release/app-release.aab
+
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
