@@ -46,6 +46,11 @@ import {
   RefreshCw,
   ChevronRight,
   BadgeCheck,
+  Copy,
+  Plus,
+  Link2,
+  ToggleLeft,
+  KeyRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -71,6 +76,19 @@ interface AdminProject {
     full_name: string;
     email: string;
   } | null;
+}
+
+interface AdminInvite {
+  id: string;
+  code: string;
+  label: string | null;
+  created_by: string | null;
+  created_at: string;
+  used_by: string | null;
+  used_at: string | null;
+  is_active: boolean;
+  creator?: { full_name: string } | null;
+  user?: { full_name: string } | null;
 }
 
 interface AdminUser {
@@ -116,6 +134,12 @@ const AdminDashboard = () => {
   const [deletingUser, setDeletingUser] = useState(false);
   const [editingUser, setEditingUser] = useState(false);
   const [editUserRole, setEditUserRole] = useState<'student' | 'lecturer' | 'admin'>('student');
+
+  // Invites state
+  const [invites, setInvites] = useState<AdminInvite[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState('projects');
 
@@ -292,6 +316,90 @@ const AdminDashboard = () => {
     navigate('/login');
   };
 
+  // ─── Invite helpers ───────────────────────────────────────────────────────
+  const fetchInvites = async () => {
+    setInvitesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('admin_invites')
+        .select(`
+          id, code, label, created_by, created_at,
+          used_by, used_at, is_active,
+          creator:profiles!admin_invites_created_by_fkey(full_name),
+          user:profiles!admin_invites_used_by_fkey(full_name)
+        `)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setInvites((data as unknown as AdminInvite[]) || []);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to load invites';
+      toast.error(msg);
+    } finally {
+      setInvitesLoading(false);
+    }
+  };
+
+  const generateInviteCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const seg = (n: number) =>
+      Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    return `ADMIN-${seg(4)}-${seg(4)}`;
+  };
+
+  const handleGenerateInvite = async (label?: string) => {
+    setGeneratingInvite(true);
+    try {
+      const code = generateInviteCode();
+      const { error } = await supabase.from('admin_invites').insert({
+        code,
+        label: label || null,
+        created_by: profile?.id,
+      });
+      if (error) throw error;
+      toast.success('Invite code created');
+      await fetchInvites();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate invite';
+      toast.error(msg);
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const handleRevokeInvite = async (id: string) => {
+    setRevokingInviteId(id);
+    try {
+      const { error } = await supabase
+        .from('admin_invites')
+        .update({ is_active: false })
+        .eq('id', id);
+      if (error) throw error;
+      setInvites(prev => prev.map(i => i.id === id ? { ...i, is_active: false } : i));
+      toast.success('Invite code revoked');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to revoke invite';
+      toast.error(msg);
+    } finally {
+      setRevokingInviteId(null);
+    }
+  };
+
+  const handleDeleteInvite = async (id: string) => {
+    try {
+      const { error } = await supabase.from('admin_invites').delete().eq('id', id);
+      if (error) throw error;
+      setInvites(prev => prev.filter(i => i.id !== id));
+      toast.success('Invite deleted');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete invite';
+      toast.error(msg);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard!'));
+  };
+
   const stats = {
     totalProjects: projects.length,
     pending: projects.filter(p => p.status === 'pending').length,
@@ -349,7 +457,10 @@ const AdminDashboard = () => {
         </div>
 
         {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={(v) => {
+          setActiveTab(v);
+          if (v === 'invites' && invites.length === 0) fetchInvites();
+        }}>
           <TabsList className="glass-card mb-6">
             <TabsTrigger
               value="projects"
@@ -364,6 +475,13 @@ const AdminDashboard = () => {
             >
               <Users className="w-4 h-4 mr-1" />
               Users
+            </TabsTrigger>
+            <TabsTrigger
+              value="invites"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <KeyRound className="w-4 h-4 mr-1" />
+              Invites
             </TabsTrigger>
           </TabsList>
 
@@ -594,6 +712,171 @@ const AdminDashboard = () => {
               </div>
             )}
           </TabsContent>
+
+          {/* ─── Invites Tab ─── */}
+          <TabsContent value="invites">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-semibold">Super Admin Invite Codes</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Generate codes to invite others as Super Admin</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="icon" onClick={fetchInvites} title="Refresh">
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleGenerateInvite()}
+                  disabled={generatingInvite}
+                  data-testid="btn-generate-invite"
+                >
+                  {generatingInvite ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+                  Generate Code
+                </Button>
+              </div>
+            </div>
+
+            {/* Hardcoded fallback codes info */}
+            <Card variant="glass" className="mb-4 border-orange-500/20 bg-orange-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p className="font-medium text-foreground">Built-in fallback code (always active)</p>
+                    <div className="flex items-center gap-2">
+                      <code className="bg-muted px-2 py-0.5 rounded text-orange-400 font-mono">SCIARCHIVE-ADMIN-2026</code>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard('SCIARCHIVE-ADMIN-2026')}>
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <p className="opacity-70">This code is hardcoded and cannot be revoked. Use database codes below for better control.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {invitesLoading ? (
+              <div className="flex justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : invites.length === 0 ? (
+              <Card variant="glass" className="text-center py-16">
+                <CardContent>
+                  <KeyRound className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Invite Codes Yet</h3>
+                  <p className="text-muted-foreground text-sm mb-4">Generate a code to invite someone as a Super Admin.</p>
+                  <Button onClick={() => handleGenerateInvite()} disabled={generatingInvite}>
+                    <Plus className="w-4 h-4 mr-1" /> Generate First Code
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {invites.map((invite) => (
+                  <Card
+                    key={invite.id}
+                    variant="glass"
+                    className={invite.is_active && !invite.used_by ? '' : 'opacity-60'}
+                    data-testid={`invite-card-${invite.id}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          {/* Code + status */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <code className="font-mono text-sm font-semibold text-primary tracking-wide">
+                              {invite.code}
+                            </code>
+                            {invite.used_by ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground border border-border">
+                                Used
+                              </span>
+                            ) : invite.is_active ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
+                                Active
+                              </span>
+                            ) : (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+                                Revoked
+                              </span>
+                            )}
+                            {invite.label && (
+                              <span className="text-xs text-muted-foreground">— {invite.label}</span>
+                            )}
+                          </div>
+
+                          {/* Meta */}
+                          <p className="text-xs text-muted-foreground">
+                            Created {new Date(invite.created_at).toLocaleDateString()}
+                            {invite.creator && ` by ${(invite.creator as { full_name: string }).full_name}`}
+                          </p>
+                          {invite.used_by && invite.user && (
+                            <p className="text-xs text-muted-foreground">
+                              Used by {(invite.user as { full_name: string }).full_name}
+                              {invite.used_at && ` on ${new Date(invite.used_at).toLocaleDateString()}`}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {invite.is_active && !invite.used_by && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title="Copy code"
+                                onClick={() => copyToClipboard(invite.code)}
+                                data-testid={`btn-copy-invite-${invite.id}`}
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title="Share invite link"
+                                onClick={() => copyToClipboard(`Register as Super Admin using invite code: ${invite.code}`)}
+                                data-testid={`btn-share-invite-${invite.id}`}
+                              >
+                                <Link2 className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-yellow-500 hover:text-yellow-500"
+                                title="Revoke code"
+                                onClick={() => handleRevokeInvite(invite.id)}
+                                disabled={revokingInviteId === invite.id}
+                                data-testid={`btn-revoke-invite-${invite.id}`}
+                              >
+                                {revokingInviteId === invite.id
+                                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  : <ToggleLeft className="w-3.5 h-3.5" />
+                                }
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            title="Delete"
+                            onClick={() => handleDeleteInvite(invite.id)}
+                            data-testid={`btn-delete-invite-${invite.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
         </Tabs>
       </main>
 

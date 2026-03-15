@@ -39,6 +39,7 @@ const Register = () => {
     isValid: boolean;
     error?: string;
   } | null>(null);
+  const [dbInviteValid, setDbInviteValid] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (formData.role === 'student' && formData.registrationNumber) {
@@ -58,6 +59,27 @@ const Register = () => {
     }
   }, [formData.staffId, formData.role]);
 
+  // Check DB invite codes for admin role
+  useEffect(() => {
+    const code = formData.adminCode.trim().toUpperCase();
+    if (formData.role !== 'admin' || !code || code === ADMIN_INVITE_CODE) {
+      setDbInviteValid(null);
+      return;
+    }
+    if (code.length < 8) { setDbInviteValid(null); return; }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from('admin_invites')
+        .select('id')
+        .eq('code', code)
+        .eq('is_active', true)
+        .is('used_by', null)
+        .maybeSingle();
+      setDbInviteValid(!!data);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [formData.adminCode, formData.role]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -66,7 +88,7 @@ const Register = () => {
     if (loading) return true;
     if (formData.role === 'student' && !regNoValidation?.isValid) return true;
     if (formData.role === 'lecturer' && !staffIdValidation?.isValid) return true;
-    if (formData.role === 'admin' && formData.adminCode !== ADMIN_INVITE_CODE) return true;
+    if (formData.role === 'admin' && formData.adminCode.trim().length < 8) return true;
     return false;
   };
 
@@ -89,12 +111,37 @@ const Register = () => {
       toast.error(staffIdValidation?.error || 'Invalid staff ID');
       return;
     }
-    if (formData.role === 'admin' && formData.adminCode !== ADMIN_INVITE_CODE) {
-      toast.error('Invalid admin invite code');
-      return;
+    if (formData.role === 'admin') {
+      const code = formData.adminCode.trim().toUpperCase();
+      if (code !== ADMIN_INVITE_CODE) {
+        // Check database for a valid invite
+        const { data: dbInvite } = await supabase
+          .from('admin_invites')
+          .select('id, code')
+          .eq('code', code)
+          .eq('is_active', true)
+          .is('used_by', null)
+          .maybeSingle();
+        if (!dbInvite) {
+          toast.error('Invalid or expired Super Admin verification code');
+          return;
+        }
+      }
     }
 
     setLoading(true);
+    const code = formData.adminCode.trim().toUpperCase();
+    let dbInviteId: string | null = null;
+    if (formData.role === 'admin' && code !== ADMIN_INVITE_CODE) {
+      const { data } = await supabase
+        .from('admin_invites')
+        .select('id')
+        .eq('code', code)
+        .eq('is_active', true)
+        .is('used_by', null)
+        .maybeSingle();
+      dbInviteId = data?.id || null;
+    }
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -167,6 +214,14 @@ const Register = () => {
         }
       } else {
         toast.success('Account created successfully! Welcome to SCI Archive.');
+      }
+
+      // Mark DB invite code as used
+      if (dbInviteId && signInData?.user) {
+        await supabase
+          .from('admin_invites')
+          .update({ used_by: signInData.user.id, used_at: new Date().toISOString() })
+          .eq('id', dbInviteId);
       }
 
       const dest =
@@ -412,22 +467,29 @@ const Register = () => {
                         : ''
                     }
                   />
-                  {formData.adminCode && formData.adminCode !== ADMIN_INVITE_CODE && (
-                    <div className="p-3 rounded-lg text-sm bg-destructive/10 text-destructive border border-destructive/20">
-                      <div className="flex items-start gap-2">
-                        <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                        <p>Invalid invite code. Contact the system administrator.</p>
+                  {(() => {
+                    const code = formData.adminCode.trim().toUpperCase();
+                    const isHardcoded = code === ADMIN_INVITE_CODE;
+                    const isValid = isHardcoded || dbInviteValid === true;
+                    const isInvalid = code.length >= 8 && !isHardcoded && dbInviteValid === false;
+                    if (isValid) return (
+                      <div className="p-3 rounded-lg text-sm bg-orange-500/10 text-orange-600 border border-orange-500/20">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                          <p>Verified — you will be registered as a Super Admin.</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {formData.adminCode === ADMIN_INVITE_CODE && (
-                    <div className="p-3 rounded-lg text-sm bg-orange-500/10 text-orange-600 border border-orange-500/20">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                        <p>Verified — you will be registered as a Super Admin.</p>
+                    );
+                    if (isInvalid) return (
+                      <div className="p-3 rounded-lg text-sm bg-destructive/10 text-destructive border border-destructive/20">
+                        <div className="flex items-start gap-2">
+                          <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                          <p>Invalid or expired code. Contact the Super Admin for a new invite.</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                    return null;
+                  })()}
                 </div>
               )}
 
