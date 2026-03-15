@@ -45,6 +45,7 @@ import {
   AlertCircle,
   RefreshCw,
   ChevronRight,
+  BadgeCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -311,9 +312,13 @@ const AdminDashboard = () => {
             </div>
             <div>
               <h1 className="font-display font-bold text-base leading-tight gradient-text">SCI Archive</h1>
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                {profile?.full_name?.split(' ')[0]} • Admin
-              </p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  {profile?.full_name?.split(' ')[0]}
+                </p>
+                <span className="text-[10px] font-semibold text-orange-400 leading-tight">• Super Admin</span>
+                <BadgeCheck className="w-3 h-3 text-orange-400 shrink-0" />
+              </div>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={handleLogout} className="h-9 w-9">
@@ -505,7 +510,7 @@ const AdminDashboard = () => {
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="student">Students</SelectItem>
                   <SelectItem value="lecturer">Lecturers</SelectItem>
-                  <SelectItem value="admin">Admins</SelectItem>
+                  <SelectItem value="admin">Super Admins</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="icon" onClick={fetchUsers} title="Refresh">
@@ -540,15 +545,20 @@ const AdminDashboard = () => {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium">{user.full_name}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                              user.role === 'admin'
-                                ? 'bg-orange-500/10 text-orange-500 border-orange-500/20'
-                                : user.role === 'lecturer'
-                                ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-                                : 'bg-primary/10 text-primary border-primary/20'
-                            }`}>
-                              {user.role}
-                            </span>
+                            {user.role === 'admin' ? (
+                              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border bg-orange-500/10 text-orange-500 border-orange-500/20 font-semibold">
+                                Super Admin
+                                <BadgeCheck className="w-3 h-3 shrink-0" />
+                              </span>
+                            ) : (
+                              <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                                user.role === 'lecturer'
+                                  ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                  : 'bg-primary/10 text-primary border-primary/20'
+                              }`}>
+                                {user.role}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">{user.email}</p>
                           {user.registration_number && (
@@ -706,15 +716,23 @@ const AdminDashboard = () => {
               <DialogTitle className="font-display">Edit User</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              <div className="p-3 rounded-lg bg-muted/30 space-y-1 text-sm">
-                <p className="font-medium">{selectedUser.full_name}</p>
+              <div className="p-3 rounded-lg bg-muted/30 space-y-1.5 text-sm">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-medium">{selectedUser.full_name}</p>
+                  {selectedUser.role === 'admin' && (
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border bg-orange-500/10 text-orange-500 border-orange-500/20 font-semibold">
+                      Super Admin
+                      <BadgeCheck className="w-3 h-3 shrink-0" />
+                    </span>
+                  )}
+                </div>
                 <p className="text-muted-foreground">{selectedUser.email}</p>
                 {selectedUser.registration_number && (
                   <p className="text-muted-foreground">{selectedUser.registration_number}</p>
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label>Change Role</Label>
                 <Select
                   value={editUserRole}
                   onValueChange={(v) => setEditUserRole(v as 'student' | 'lecturer' | 'admin')}
@@ -725,13 +743,13 @@ const AdminDashboard = () => {
                   <SelectContent>
                     <SelectItem value="student">Student</SelectItem>
                     <SelectItem value="lecturer">Lecturer</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="admin">Super Admin</SelectItem>
                   </SelectContent>
                 </Select>
                 {editUserRole === 'admin' && (
                   <div className="flex items-start gap-2 p-2 rounded-lg bg-orange-500/10 text-orange-600 text-xs">
                     <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                    <p>This gives the user full administrative access including the ability to delete projects and users.</p>
+                    <p>This grants full Super Admin access — the user can manage all projects and users.</p>
                   </div>
                 )}
               </div>

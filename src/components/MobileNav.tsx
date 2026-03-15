@@ -23,7 +23,7 @@ const lecturerNav: NavItem[] = [
 ];
 
 const adminNav: NavItem[] = [
-  { href: '/admin', icon: Shield, label: 'Admin' },
+  { href: '/admin', icon: Shield, label: 'Dashboard' },
   { href: '/archive', icon: Archive, label: 'Archive' },
   { href: '/users', icon: Users, label: 'Users' },
   { href: '/settings', icon: Settings, label: 'Settings' },

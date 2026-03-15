@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import ParticlesBackground from '@/components/ParticlesBackground';
-import { GraduationCap, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Shield } from 'lucide-react';
+import { GraduationCap, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Shield, BadgeCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateRegistrationNumber, validateStaffId, getYearSuffix } from '@/lib/regNoValidation';
 
@@ -244,7 +244,7 @@ const Register = () => {
                     <RadioGroupItem value="admin" id="admin" data-testid="role-admin" />
                     <Label htmlFor="admin" className="cursor-pointer text-sm flex items-center gap-1">
                       <Shield className="w-3 h-3" />
-                      Admin
+                      Super Admin
                     </Label>
                   </div>
                 </RadioGroup>
@@ -392,8 +392,8 @@ const Register = () => {
               {formData.role === 'admin' && (
                 <div className="space-y-2">
                   <Label htmlFor="adminCode" className="flex items-center gap-1">
-                    <Shield className="w-3 h-3 text-orange-500" />
-                    Admin Invite Code
+                    <BadgeCheck className="w-3 h-3 text-orange-500" />
+                    Super Admin Verification Code
                   </Label>
                   <Input
                     id="adminCode"
@@ -424,7 +424,7 @@ const Register = () => {
                     <div className="p-3 rounded-lg text-sm bg-orange-500/10 text-orange-600 border border-orange-500/20">
                       <div className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                        <p>Valid invite code — you will be registered as an administrator.</p>
+                        <p>Verified — you will be registered as a Super Admin.</p>
                       </div>
                     </div>
                   )}
