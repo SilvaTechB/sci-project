@@ -34,7 +34,8 @@ const Login = () => {
   // Redirect if already fully logged in
   useEffect(() => {
     if (!authLoading && user && profile) {
-      navigate(profile.role === 'lecturer' ? '/lecturer' : '/student', { replace: true });
+      const dest = profile.role === 'admin' ? '/admin' : profile.role === 'lecturer' ? '/lecturer' : '/student';
+      navigate(dest, { replace: true });
     }
   }, [user, profile, authLoading, navigate]);
 
@@ -84,7 +85,8 @@ const Login = () => {
 
         toast.success('Welcome back!');
         setLoading(false);
-        navigate(profileData.role === 'lecturer' ? '/lecturer' : '/student', { replace: true });
+        const dest = profileData.role === 'admin' ? '/admin' : profileData.role === 'lecturer' ? '/lecturer' : '/student';
+        navigate(dest, { replace: true });
       }
     } catch {
       toast.error('An unexpected error occurred. Please try again.');
@@ -138,7 +140,8 @@ const Login = () => {
       }
 
       toast.success('Profile completed! Welcome to SCI Archive.');
-      navigate(profileForm.role === 'lecturer' ? '/lecturer' : '/student', { replace: true });
+      const dest = profileForm.role === 'admin' ? '/admin' : profileForm.role === 'lecturer' ? '/lecturer' : '/student';
+      navigate(dest, { replace: true });
     } catch {
       toast.error('An unexpected error occurred. Please try again.');
     } finally {

@@ -8,7 +8,7 @@ interface Profile {
   full_name: string;
   registration_number: string | null;
   email: string;
-  role: 'student' | 'lecturer';
+  role: 'student' | 'lecturer' | 'admin';
   course_name: string | null;
   year_of_study: number | null;
   can_submit: boolean;

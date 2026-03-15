@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('student' | 'lecturer')[];
+  allowedRoles?: ('student' | 'lecturer' | 'admin')[];
 }
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
@@ -18,7 +18,8 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
         navigate('/login', { replace: true });
       } else if (allowedRoles && !allowedRoles.includes(profile.role)) {
         // Redirect to correct dashboard
-        navigate(profile.role === 'lecturer' ? '/lecturer' : '/student', { replace: true });
+        const dest = profile.role === 'admin' ? '/admin' : profile.role === 'lecturer' ? '/lecturer' : '/student';
+        navigate(dest, { replace: true });
       }
     }
   }, [user, profile, loading, navigate, allowedRoles]);
@@ -45,7 +46,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return null;
   }
 
-  if (allowedRoles && !allowedRoles.includes(profile.role)) {
+  if (allowedRoles && !allowedRoles.includes(profile.role as 'student' | 'lecturer' | 'admin')) {
     return null;
   }
 

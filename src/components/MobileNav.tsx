@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { Home, Archive, Settings, Users, BookOpen } from 'lucide-react';
+import { Home, Archive, Settings, Users, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -22,11 +22,23 @@ const lecturerNav: NavItem[] = [
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
+const adminNav: NavItem[] = [
+  { href: '/admin', icon: Shield, label: 'Admin' },
+  { href: '/archive', icon: Archive, label: 'Archive' },
+  { href: '/users', icon: Users, label: 'Users' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
+];
+
 const MobileNav = () => {
   const { profile } = useAuth();
   const location = useLocation();
 
-  const navItems = profile?.role === 'lecturer' ? lecturerNav : studentNav;
+  const navItems =
+    profile?.role === 'admin'
+      ? adminNav
+      : profile?.role === 'lecturer'
+      ? lecturerNav
+      : studentNav;
 
   return (
     <nav className="mobile-nav">

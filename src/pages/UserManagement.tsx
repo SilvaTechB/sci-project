@@ -24,7 +24,7 @@ interface UserProfile {
   user_id: string;
   full_name: string;
   email: string;
-  role: 'student' | 'lecturer';
+  role: 'student' | 'lecturer' | 'admin';
   registration_number: string | null;
   course_name: string | null;
   year_of_study: number | null;
@@ -136,6 +136,7 @@ const UserManagement = () => {
     total: users.length,
     students: users.filter(u => u.role === 'student').length,
     lecturers: users.filter(u => u.role === 'lecturer').length,
+    admins: users.filter(u => u.role === 'admin').length,
     canSubmit: users.filter(u => u.can_submit).length,
   };
 
@@ -274,6 +275,7 @@ const UserManagement = () => {
                     <SelectItem value="all">All Roles</SelectItem>
                     <SelectItem value="student">Students</SelectItem>
                     <SelectItem value="lecturer">Lecturers</SelectItem>
+                    <SelectItem value="admin">Admins</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -299,9 +301,11 @@ const UserManagement = () => {
                     >
                       <div className="flex items-center gap-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          user.role === 'lecturer' ? 'bg-warning/20' : 'bg-primary/20'
+                          user.role === 'admin' ? 'bg-orange-500/20' : user.role === 'lecturer' ? 'bg-warning/20' : 'bg-primary/20'
                         }`}>
-                          {user.role === 'lecturer' ? (
+                          {user.role === 'admin' ? (
+                            <Shield className="w-5 h-5 text-orange-500" />
+                          ) : user.role === 'lecturer' ? (
                             <Shield className="w-5 h-5 text-warning" />
                           ) : (
                             <BookOpen className="w-5 h-5 text-primary" />
@@ -319,7 +323,7 @@ const UserManagement = () => {
                       </div>
                       
                       <div className="flex items-center gap-3">
-                        <Badge variant={user.role === 'lecturer' ? 'default' : 'secondary'}>
+                        <Badge variant={user.role === 'lecturer' ? 'default' : user.role === 'admin' ? 'destructive' : 'secondary'}>
                           {user.role}
                         </Badge>
                         {user.role === 'student' && (

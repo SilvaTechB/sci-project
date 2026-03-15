@@ -7,9 +7,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import ParticlesBackground from '@/components/ParticlesBackground';
-import { GraduationCap, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { GraduationCap, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateRegistrationNumber, validateStaffId, getYearSuffix } from '@/lib/regNoValidation';
+
+const ADMIN_INVITE_CODE = 'SCIARCHIVE-ADMIN-2026';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -18,9 +20,10 @@ const Register = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'student' as 'student' | 'lecturer',
+    role: 'student' as 'student' | 'lecturer' | 'admin',
     registrationNumber: '',
     staffId: '',
+    adminCode: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,7 +40,6 @@ const Register = () => {
     error?: string;
   } | null>(null);
 
-  // Real-time registration number validation
   useEffect(() => {
     if (formData.role === 'student' && formData.registrationNumber) {
       const validation = validateRegistrationNumber(formData.registrationNumber);
@@ -47,7 +49,6 @@ const Register = () => {
     }
   }, [formData.registrationNumber, formData.role]);
 
-  // Real-time staff ID validation
   useEffect(() => {
     if (formData.role === 'lecturer' && formData.staffId) {
       const validation = validateStaffId(formData.staffId);
@@ -61,78 +62,75 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const isSubmitDisabled = () => {
+    if (loading) return true;
+    if (formData.role === 'student' && !regNoValidation?.isValid) return true;
+    if (formData.role === 'lecturer' && !staffIdValidation?.isValid) return true;
+    if (formData.role === 'admin' && formData.adminCode !== ADMIN_INVITE_CODE) return true;
+    return false;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
-
     if (formData.password.length < 6) {
       toast.error('Password must be at least 6 characters');
       return;
     }
-
-    // Validate registration number for students
-    if (formData.role === 'student') {
-      if (!regNoValidation?.isValid) {
-        toast.error(regNoValidation?.error || 'Invalid registration number');
-        return;
-      }
+    if (formData.role === 'student' && !regNoValidation?.isValid) {
+      toast.error(regNoValidation?.error || 'Invalid registration number');
+      return;
     }
-
-    // Validate staff ID for lecturers
-    if (formData.role === 'lecturer') {
-      if (!staffIdValidation?.isValid) {
-        toast.error(staffIdValidation?.error || 'Invalid staff ID');
-        return;
-      }
+    if (formData.role === 'lecturer' && !staffIdValidation?.isValid) {
+      toast.error(staffIdValidation?.error || 'Invalid staff ID');
+      return;
+    }
+    if (formData.role === 'admin' && formData.adminCode !== ADMIN_INVITE_CODE) {
+      toast.error('Invalid admin invite code');
+      return;
     }
 
     setLoading(true);
-
     try {
-      // Step 1: Create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
+        options: { emailRedirectTo: `${window.location.origin}/login` },
       });
 
       if (authError) {
-        if (authError.message.toLowerCase().includes('already registered') ||
-            authError.message.toLowerCase().includes('already been registered')) {
+        if (
+          authError.message.toLowerCase().includes('already registered') ||
+          authError.message.toLowerCase().includes('already been registered')
+        ) {
           toast.error('An account with this email already exists. Please sign in instead.');
         } else {
           toast.error(authError.message);
         }
         return;
       }
-
       if (!authData.user) {
         toast.error('Sign-up failed. Please try again.');
         return;
       }
 
-      // Step 2: Sign in immediately to get a live session (needed for RLS on profile insert)
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
 
       if (signInError) {
-        // Email confirmation is enabled — user needs to confirm before they can log in
         if (
           signInError.message.toLowerCase().includes('not confirmed') ||
           signInError.message.toLowerCase().includes('email not confirmed')
         ) {
-          toast.success(
-            'Account created! Check your email for a confirmation link, then sign in here.',
-            { duration: 8000 }
-          );
+          toast.success('Account created! Check your email for a confirmation link, then sign in.', {
+            duration: 8000,
+          });
           navigate('/login');
           return;
         }
@@ -141,26 +139,25 @@ const Register = () => {
         return;
       }
 
-      // Step 3: We have an active session — create the profile
       const profileData = {
         user_id: signInData.user!.id,
         full_name: formData.fullName,
         email: formData.email,
         role: formData.role,
-        registration_number: formData.role === 'student'
-          ? formData.registrationNumber.toUpperCase()
-          : formData.staffId,
+        registration_number:
+          formData.role === 'student'
+            ? formData.registrationNumber.toUpperCase()
+            : formData.role === 'lecturer'
+            ? formData.staffId
+            : null,
         course_name: formData.role === 'student' ? regNoValidation?.courseName : null,
         year_of_study: formData.role === 'student' ? regNoValidation?.yearOfStudy : null,
         can_submit: formData.role === 'student' ? (regNoValidation?.canSubmit ?? false) : false,
       };
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert(profileData);
+      const { error: profileError } = await supabase.from('profiles').insert(profileData);
 
       if (profileError) {
-        // If profile already exists (race condition), just navigate
         if (profileError.code === '23505') {
           toast.success('Account created successfully!');
         } else {
@@ -172,9 +169,10 @@ const Register = () => {
         toast.success('Account created successfully! Welcome to SCI Archive.');
       }
 
-      navigate(formData.role === 'lecturer' ? '/lecturer' : '/student', { replace: true });
-
-    } catch (error) {
+      const dest =
+        formData.role === 'admin' ? '/admin' : formData.role === 'lecturer' ? '/lecturer' : '/student';
+      navigate(dest, { replace: true });
+    } catch {
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -184,9 +182,8 @@ const Register = () => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 py-8 relative">
       <ParticlesBackground />
-      
+
       <div className="w-full max-w-md z-10 animate-fade-in">
-        {/* Logo */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-primary mb-4 shadow-lg shadow-primary/30">
             <GraduationCap className="w-8 h-8 text-primary-foreground" />
@@ -200,7 +197,7 @@ const Register = () => {
             <CardTitle>Register</CardTitle>
             <CardDescription>Join the SCI Project Archive</CardDescription>
           </CardHeader>
-          
+
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               {/* Role Selection */}
@@ -208,22 +205,52 @@ const Register = () => {
                 <Label>I am a</Label>
                 <RadioGroup
                   value={formData.role}
-                  onValueChange={(value: 'student' | 'lecturer') => 
+                  onValueChange={(value: 'student' | 'lecturer' | 'admin') =>
                     setFormData({ ...formData, role: value })
                   }
-                  className="grid grid-cols-2 gap-4"
+                  className="grid grid-cols-3 gap-3"
                 >
-                  <div className={`flex items-center space-x-2 p-4 rounded-lg border transition-all cursor-pointer ${formData.role === 'student' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                    <RadioGroupItem value="student" id="student" />
-                    <Label htmlFor="student" className="cursor-pointer">Student</Label>
+                  <div
+                    className={`flex items-center space-x-2 p-3 rounded-lg border transition-all cursor-pointer ${
+                      formData.role === 'student'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <RadioGroupItem value="student" id="student" data-testid="role-student" />
+                    <Label htmlFor="student" className="cursor-pointer text-sm">
+                      Student
+                    </Label>
                   </div>
-                  <div className={`flex items-center space-x-2 p-4 rounded-lg border transition-all cursor-pointer ${formData.role === 'lecturer' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                    <RadioGroupItem value="lecturer" id="lecturer" />
-                    <Label htmlFor="lecturer" className="cursor-pointer">Lecturer</Label>
+                  <div
+                    className={`flex items-center space-x-2 p-3 rounded-lg border transition-all cursor-pointer ${
+                      formData.role === 'lecturer'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <RadioGroupItem value="lecturer" id="lecturer" data-testid="role-lecturer" />
+                    <Label htmlFor="lecturer" className="cursor-pointer text-sm">
+                      Lecturer
+                    </Label>
+                  </div>
+                  <div
+                    className={`flex items-center space-x-2 p-3 rounded-lg border transition-all cursor-pointer ${
+                      formData.role === 'admin'
+                        ? 'border-orange-500 bg-orange-500/10'
+                        : 'border-border hover:border-orange-500/50'
+                    }`}
+                  >
+                    <RadioGroupItem value="admin" id="admin" data-testid="role-admin" />
+                    <Label htmlFor="admin" className="cursor-pointer text-sm flex items-center gap-1">
+                      <Shield className="w-3 h-3" />
+                      Admin
+                    </Label>
                   </div>
                 </RadioGroup>
               </div>
 
+              {/* Full Name */}
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>
                 <Input
@@ -234,9 +261,11 @@ const Register = () => {
                   value={formData.fullName}
                   onChange={handleChange}
                   required
+                  data-testid="input-fullname"
                 />
               </div>
 
+              {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -247,10 +276,11 @@ const Register = () => {
                   value={formData.email}
                   onChange={handleChange}
                   required
+                  data-testid="input-email"
                 />
               </div>
 
-              {/* Registration Number - Only for students */}
+              {/* Registration Number — students only */}
               {formData.role === 'student' && (
                 <div className="space-y-2">
                   <Label htmlFor="registrationNumber">Registration Number</Label>
@@ -262,21 +292,28 @@ const Register = () => {
                     value={formData.registrationNumber}
                     onChange={handleChange}
                     required
-                    className={regNoValidation && !regNoValidation.isValid ? 'border-destructive' : regNoValidation?.isValid ? 'border-success' : ''}
+                    data-testid="input-regno"
+                    className={
+                      regNoValidation && !regNoValidation.isValid
+                        ? 'border-destructive'
+                        : regNoValidation?.isValid
+                        ? 'border-success'
+                        : ''
+                    }
                   />
                   <p className="text-xs text-muted-foreground">
                     Format: COURSE/LEVEL/NUMBER/YEAR (e.g., ITE/D/01-06605/2023)
                   </p>
-                  
-                  {/* Validation Feedback */}
                   {regNoValidation && (
-                    <div className={`p-3 rounded-lg text-sm ${
-                      regNoValidation.isValid 
-                        ? regNoValidation.canSubmit 
-                          ? 'bg-success/10 text-success border border-success/20'
-                          : 'bg-warning/10 text-warning border border-warning/20'
-                        : 'bg-destructive/10 text-destructive border border-destructive/20'
-                    }`}>
+                    <div
+                      className={`p-3 rounded-lg text-sm ${
+                        regNoValidation.isValid
+                          ? regNoValidation.canSubmit
+                            ? 'bg-success/10 text-success border border-success/20'
+                            : 'bg-warning/10 text-warning border border-warning/20'
+                          : 'bg-destructive/10 text-destructive border border-destructive/20'
+                      }`}
+                    >
                       <div className="flex items-start gap-2">
                         {regNoValidation.isValid ? (
                           regNoValidation.canSubmit ? (
@@ -291,7 +328,8 @@ const Register = () => {
                           {regNoValidation.isValid ? (
                             <>
                               <p className="font-medium">
-                                {getYearSuffix(regNoValidation.yearOfStudy!)} Year • {regNoValidation.courseName}
+                                {getYearSuffix(regNoValidation.yearOfStudy!)} Year •{' '}
+                                {regNoValidation.courseName}
                               </p>
                               {regNoValidation.canSubmit ? (
                                 <p className="text-xs opacity-80 mt-1">You can submit projects</p>
@@ -309,7 +347,7 @@ const Register = () => {
                 </div>
               )}
 
-              {/* Staff ID - Only for lecturers */}
+              {/* Staff ID — lecturers only */}
               {formData.role === 'lecturer' && (
                 <div className="space-y-2">
                   <Label htmlFor="staffId">Staff ID</Label>
@@ -321,13 +359,16 @@ const Register = () => {
                     value={formData.staffId}
                     onChange={handleChange}
                     required
-                    className={staffIdValidation && !staffIdValidation.isValid ? 'border-destructive' : staffIdValidation?.isValid ? 'border-success' : ''}
+                    data-testid="input-staffid"
+                    className={
+                      staffIdValidation && !staffIdValidation.isValid
+                        ? 'border-destructive'
+                        : staffIdValidation?.isValid
+                        ? 'border-success'
+                        : ''
+                    }
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Staff ID must be 4-10 digits only
-                  </p>
-                  
-                  {/* Staff ID Validation Feedback */}
+                  <p className="text-xs text-muted-foreground">Staff ID must be 4–10 digits only</p>
                   {staffIdValidation && !staffIdValidation.isValid && (
                     <div className="p-3 rounded-lg text-sm bg-destructive/10 text-destructive border border-destructive/20">
                       <div className="flex items-start gap-2">
@@ -346,7 +387,51 @@ const Register = () => {
                   )}
                 </div>
               )}
-              
+
+              {/* Admin Code — admin only */}
+              {formData.role === 'admin' && (
+                <div className="space-y-2">
+                  <Label htmlFor="adminCode" className="flex items-center gap-1">
+                    <Shield className="w-3 h-3 text-orange-500" />
+                    Admin Invite Code
+                  </Label>
+                  <Input
+                    id="adminCode"
+                    name="adminCode"
+                    type="password"
+                    placeholder="Enter invite code"
+                    value={formData.adminCode}
+                    onChange={handleChange}
+                    required
+                    data-testid="input-admincode"
+                    className={
+                      formData.adminCode
+                        ? formData.adminCode === ADMIN_INVITE_CODE
+                          ? 'border-success'
+                          : 'border-destructive'
+                        : ''
+                    }
+                  />
+                  {formData.adminCode && formData.adminCode !== ADMIN_INVITE_CODE && (
+                    <div className="p-3 rounded-lg text-sm bg-destructive/10 text-destructive border border-destructive/20">
+                      <div className="flex items-start gap-2">
+                        <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <p>Invalid invite code. Contact the system administrator.</p>
+                      </div>
+                    </div>
+                  )}
+                  {formData.adminCode === ADMIN_INVITE_CODE && (
+                    <div className="p-3 rounded-lg text-sm bg-orange-500/10 text-orange-600 border border-orange-500/20">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <p>Valid invite code — you will be registered as an administrator.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Password */}
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
@@ -359,6 +444,7 @@ const Register = () => {
                     onChange={handleChange}
                     required
                     minLength={6}
+                    data-testid="input-password"
                   />
                   <button
                     type="button"
@@ -370,6 +456,7 @@ const Register = () => {
                 </div>
               </div>
 
+              {/* Confirm Password */}
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <Input
@@ -380,17 +467,19 @@ const Register = () => {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   required
+                  data-testid="input-confirm-password"
                 />
               </div>
             </CardContent>
-            
+
             <CardFooter className="flex flex-col gap-4">
-              <Button 
-                type="submit" 
-                variant="gradient" 
-                size="lg" 
+              <Button
+                type="submit"
+                variant="gradient"
+                size="lg"
                 className="w-full"
-                disabled={loading || (formData.role === 'student' && !regNoValidation?.isValid) || (formData.role === 'lecturer' && !staffIdValidation?.isValid)}
+                disabled={isSubmitDisabled()}
+                data-testid="button-register"
               >
                 {loading ? (
                   <>
@@ -401,7 +490,7 @@ const Register = () => {
                   'Create Account'
                 )}
               </Button>
-              
+
               <p className="text-sm text-muted-foreground text-center">
                 Already have an account?{' '}
                 <Link to="/login" className="text-primary hover:underline">

@@ -10,10 +10,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { 
   GraduationCap, LogOut, FileText, Clock, CheckCircle, XCircle, 
   Loader2, File, Download, Users, FolderOpen,
-  Eye, History, AlertCircle, CalendarDays
+  Eye, History, AlertCircle, CalendarDays, Search, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getYearSuffix } from '@/lib/regNoValidation';
@@ -23,6 +24,12 @@ import DocumentVersionHistory from '@/components/DocumentVersionHistory';
 import ProjectComments from '@/components/ProjectComments';
 import ProjectDeadline from '@/components/ProjectDeadline';
 import MentionNotifications from '@/components/MentionNotifications';
+
+interface GroupMember {
+  id: string;
+  full_name: string;
+  registration_number: string;
+}
 
 interface ProjectWithStudent {
   id: string;
@@ -34,6 +41,8 @@ interface ProjectWithStudent {
   updated_at: string;
   deadline: string | null;
   assigned_lecturer_id: string | null;
+  project_type: 'individual' | 'group' | null;
+  contribution_type: 'individual' | 'peer' | 'group' | null;
   student: {
     id: string;
     full_name: string;
@@ -64,12 +73,16 @@ const LecturerDashboard = () => {
   const [feedback, setFeedback] = useState('');
   const [reviewing, setReviewing] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Preview state
   const [previewDoc, setPreviewDoc] = useState<ProjectDocument | null>(null);
   
   // Version history state
   const [versionHistoryDoc, setVersionHistoryDoc] = useState<{ projectId: string; docType: string } | null>(null);
+
+  // Group members for selected project
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -99,6 +112,19 @@ const LecturerDashboard = () => {
       console.error('Error fetching projects:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchGroupMembers = async (projectId: string) => {
+    try {
+      const { data } = await supabase
+        .from('group_members')
+        .select('id, full_name, registration_number')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: true });
+      setGroupMembers(data || []);
+    } catch {
+      setGroupMembers([]);
     }
   };
 
@@ -187,9 +213,14 @@ const LecturerDashboard = () => {
   };
 
   const filteredProjects = projects.filter(p => {
-    // Only show projects assigned to this lecturer for pending tab
     const isAssignedToMe = p.assigned_lecturer_id === profile?.id;
-    
+    const matchesSearch = !searchQuery.trim() ||
+      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      p.student.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.student.registration_number.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
     if (activeTab === 'pending') return p.status === 'pending' && isAssignedToMe;
     if (activeTab === 'reviewed') return p.status !== 'pending' && isAssignedToMe;
     if (activeTab === 'mine') return isAssignedToMe;
@@ -260,6 +291,26 @@ const LecturerDashboard = () => {
           total={stats.total}
         />
 
+        {/* Search Bar */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search by title, description, student name or reg number..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-9 bg-input border-border"
+            data-testid="input-search-projects"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
         {/* Projects Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="glass-card mb-6">
@@ -300,7 +351,9 @@ const LecturerDashboard = () => {
                     onClick={() => {
                       setSelectedProject(project);
                       setFeedback(project.feedback || '');
+                      setGroupMembers([]);
                       fetchProjectDocuments(project.id);
+                      if (project.project_type === 'group') fetchGroupMembers(project.id);
                     }}
                   >
                     <CardHeader>
@@ -373,6 +426,22 @@ const LecturerDashboard = () => {
                   }}
                 />
 
+                {/* Project Type & Contribution Badges */}
+                {(selectedProject.project_type || selectedProject.contribution_type) && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedProject.project_type && (
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-muted/50 border border-border text-muted-foreground capitalize">
+                        {selectedProject.project_type === 'group' ? '👥' : '👤'} {selectedProject.project_type}
+                      </span>
+                    )}
+                    {selectedProject.contribution_type && (
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-muted/50 border border-border text-muted-foreground capitalize">
+                        {selectedProject.contribution_type} contribution
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Student Info */}
                 <div className="p-4 rounded-lg bg-muted/50">
                   <h4 className="font-medium mb-2">Student Information</h4>
@@ -395,6 +464,21 @@ const LecturerDashboard = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Group Members */}
+                {groupMembers.length > 0 && (
+                  <div className="p-4 rounded-lg bg-muted/50">
+                    <h4 className="font-medium mb-2">Group Members</h4>
+                    <div className="space-y-1.5">
+                      {groupMembers.map((member) => (
+                        <div key={member.id} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0">
+                          <span>{member.full_name}</span>
+                          <span className="text-muted-foreground text-xs">{member.registration_number}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Documents with inline preview */}
                 <div className="space-y-3">

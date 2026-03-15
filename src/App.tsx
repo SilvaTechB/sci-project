@@ -19,6 +19,7 @@ import LecturerDashboard from "./pages/LecturerDashboard";
 import Archive from "./pages/Archive";
 import Settings from "./pages/Settings";
 import UserManagement from "./pages/UserManagement";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
 
@@ -31,7 +32,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const ROUTES_WITH_NAV = ['/student', '/lecturer', '/archive', '/settings', '/users'];
+const ROUTES_WITH_NAV = ['/student', '/lecturer', '/archive', '/settings', '/users', '/admin'];
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, profile } = useAuth();
@@ -83,8 +84,13 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/users" element={
-                  <ProtectedRoute allowedRoles={['lecturer']}>
+                  <ProtectedRoute allowedRoles={['lecturer', 'admin']}>
                     <UserManagement />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminDashboard />
                   </ProtectedRoute>
                 } />
                 <Route path="/install" element={<Install />} />

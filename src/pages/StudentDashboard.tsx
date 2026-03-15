@@ -67,6 +67,12 @@ interface Lecturer {
   email: string;
 }
 
+interface GroupMember {
+  id?: string;
+  full_name: string;
+  registration_number: string;
+}
+
 interface Project {
   id: string;
   title: string;
@@ -78,6 +84,8 @@ interface Project {
   deadline: string | null;
   assigned_lecturer_id: string | null;
   assigned_lecturer?: Lecturer | null;
+  project_type: 'individual' | 'group' | null;
+  contribution_type: 'individual' | 'peer' | 'group' | null;
 }
 
 interface ProjectDocument {
@@ -105,7 +113,7 @@ const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 const REQUIRED_DOCUMENTS = ['PRD', 'SDD', 'Final Report'];
-const OPTIONAL_DOCUMENTS = ['Supporting Files'];
+const OPTIONAL_DOCUMENTS = ['Images', 'Screenshots', 'Supporting Files'];
 const ALL_DOCUMENT_TYPES = [...REQUIRED_DOCUMENTS, ...OPTIONAL_DOCUMENTS];
 
 const normalizeForId = (value: string) =>
@@ -129,7 +137,14 @@ const StudentDashboard = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
-  const [newProject, setNewProject] = useState({ title: '', description: '', assignedLecturerId: '' });
+  const [newProject, setNewProject] = useState({
+    title: '',
+    description: '',
+    assignedLecturerId: '',
+    projectType: 'individual' as 'individual' | 'group',
+    contributionType: 'individual' as 'individual' | 'peer' | 'group',
+  });
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([{ full_name: '', registration_number: '' }]);
   const [uploading, setUploading] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectDocs, setProjectDocs] = useState<ProjectDocument[]>([]);
@@ -251,6 +266,8 @@ const StudentDashboard = () => {
           title: newProject.title,
           description: newProject.description || null,
           assigned_lecturer_id: newProject.assignedLecturerId,
+          project_type: newProject.projectType,
+          contribution_type: newProject.contributionType,
         })
         .select(`
           *,
@@ -260,8 +277,23 @@ const StudentDashboard = () => {
 
       if (error) throw error;
 
+      // Save group members for group projects
+      if (newProject.projectType === 'group') {
+        const validMembers = groupMembers.filter(m => m.full_name.trim() && m.registration_number.trim());
+        if (validMembers.length > 0) {
+          await supabase.from('group_members').insert(
+            validMembers.map(m => ({
+              project_id: data.id,
+              full_name: m.full_name.trim(),
+              registration_number: m.registration_number.trim().toUpperCase(),
+            }))
+          );
+        }
+      }
+
       setProjects([data, ...projects]);
-      setNewProject({ title: '', description: '', assignedLecturerId: '' });
+      setNewProject({ title: '', description: '', assignedLecturerId: '', projectType: 'individual', contributionType: 'individual' });
+      setGroupMembers([{ full_name: '', registration_number: '' }]);
       setIsNewProjectOpen(false);
       toast.success('Project created! Now upload your documents.');
       setSelectedProject(data);
@@ -516,7 +548,7 @@ const StudentDashboard = () => {
                   New Project
                 </Button>
               </DialogTrigger>
-              <DialogContent className="glass-card border-border">
+              <DialogContent className="glass-card border-border max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="font-display">Create New Project</DialogTitle>
                 </DialogHeader>
@@ -527,6 +559,7 @@ const StudentDashboard = () => {
                       placeholder="Enter project title"
                       value={newProject.title}
                       onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+                      data-testid="input-project-title"
                     />
                   </div>
                   <div className="space-y-2">
@@ -535,9 +568,112 @@ const StudentDashboard = () => {
                       placeholder="Brief description of your project"
                       value={newProject.description}
                       onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                      className="min-h-[100px] bg-input border-border"
+                      className="min-h-[80px] bg-input border-border"
                     />
                   </div>
+
+                  {/* Project Type */}
+                  <div className="space-y-2">
+                    <Label>Project Type <span className="text-destructive">*</span></Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {(['individual', 'group'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setNewProject({ ...newProject, projectType: type })}
+                          className={`p-3 rounded-lg border text-sm font-medium capitalize transition-all ${
+                            newProject.projectType === type
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border hover:border-primary/50 text-muted-foreground'
+                          }`}
+                          data-testid={`project-type-${type}`}
+                        >
+                          {type === 'individual' ? '👤 Individual' : '👥 Group'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contribution Type */}
+                  <div className="space-y-2">
+                    <Label>Contribution Type <span className="text-destructive">*</span></Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['individual', 'peer', 'group'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setNewProject({ ...newProject, contributionType: type })}
+                          className={`p-2 rounded-lg border text-xs font-medium capitalize transition-all ${
+                            newProject.contributionType === type
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border hover:border-primary/50 text-muted-foreground'
+                          }`}
+                          data-testid={`contribution-type-${type}`}
+                        >
+                          {type === 'individual' ? '🙋 Individual' : type === 'peer' ? '🤝 Peer' : '👥 Group'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Group Members — shown only when project type is group */}
+                  {newProject.projectType === 'group' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Group Members</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setGroupMembers([...groupMembers, { full_name: '', registration_number: '' }])}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Add Member
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {groupMembers.map((member, idx) => (
+                          <div key={idx} className="flex gap-2 items-start p-3 rounded-lg bg-muted/40 border border-border">
+                            <div className="flex-1 space-y-2">
+                              <Input
+                                placeholder="Full name"
+                                value={member.full_name}
+                                onChange={(e) => {
+                                  const updated = [...groupMembers];
+                                  updated[idx].full_name = e.target.value;
+                                  setGroupMembers(updated);
+                                }}
+                                data-testid={`group-member-name-${idx}`}
+                              />
+                              <Input
+                                placeholder="Registration number (e.g. ITE/D/01-06605/2023)"
+                                value={member.registration_number}
+                                onChange={(e) => {
+                                  const updated = [...groupMembers];
+                                  updated[idx].registration_number = e.target.value;
+                                  setGroupMembers(updated);
+                                }}
+                                data-testid={`group-member-regno-${idx}`}
+                              />
+                            </div>
+                            {groupMembers.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="shrink-0 h-7 w-7 text-destructive"
+                                onClick={() => setGroupMembers(groupMembers.filter((_, i) => i !== idx))}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Add all group members who contributed to this project.</p>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label>Assign Lecturer <span className="text-destructive">*</span></Label>
                     <Select
